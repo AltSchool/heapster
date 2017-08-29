@@ -102,6 +102,7 @@ func (this *kubeletMetricsSource) handleSystemContainer(c *cadvisor.ContainerInf
 }
 
 func (this *kubeletMetricsSource) handleKubernetesContainer(cName, ns, podName string, c *cadvisor.ContainerInfo, cMetrics *MetricSet) string {
+	glog.V(8).Infof("Found kubernetes container %v with labels: %+v", c.Name, c.Spec.Labels)
 	var metricSetKey string
 	if cName == infraContainerName {
 		metricSetKey = PodKey(ns, podName)

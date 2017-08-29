@@ -27,6 +27,9 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	gcm "google.golang.org/api/monitoring/v3"
+
+	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/aws/aws-sdk-go/aws/session"
 )
 
 const (
@@ -48,6 +51,8 @@ type gcmSink struct {
 	sync.RWMutex
 	registered   bool
 	project      string
+	region       string
+	aws_account  string
 	metricFilter MetricFilter
 	gcmService   *gcm.Service
 }
@@ -68,7 +73,7 @@ func fullMetricType(name string) string {
 	return fmt.Sprintf("%s/%s/%s", customApiPrefix, metricDomain, name)
 }
 
-func createTimeSeries(timestamp time.Time, labels map[string]string, metric string, val core.MetricValue, createTime time.Time) *gcm.TimeSeries {
+func (sink *gcmSink) createTimeSeries(timestamp time.Time, labels map[string]string, monitoredResource *gcm.MonitoredResource, metric string, val core.MetricValue, createTime time.Time) *gcm.TimeSeries {
 	point := &gcm.Point{
 		Interval: &gcm.TimeInterval{
 			StartTime: timestamp.Format(time.RFC3339),
@@ -104,11 +109,25 @@ func createTimeSeries(timestamp time.Time, labels map[string]string, metric stri
 			Type:   fullMetricType(metric),
 			Labels: labels,
 		},
+		Resource:  monitoredResource,
 		ValueType: valueType,
 	}
 }
 
+func (sink *gcmSink) getMonitoredResource(labels map[string]string) *gcm.MonitoredResource {
+	return &gcm.MonitoredResource{
+		Type: "aws_ec2_instance",
+		Labels: map[string]string{
+			"project_id":  sink.project,
+			"region":      sink.region,
+			"aws_account": sink.aws_account,
+			"instance_id": labels[core.LabelHostID.Key],
+		},
+	}
+}
+
 func (sink *gcmSink) getTimeSeries(timestamp time.Time, labels map[string]string, metric string, val core.MetricValue, createTime time.Time) *gcm.TimeSeries {
+	monitoredResource := sink.getMonitoredResource(labels)
 	finalLabels := make(map[string]string)
 	if core.IsNodeAutoscalingMetric(metric) {
 		// All and autoscaling. Do not populate for other filters.
@@ -133,10 +152,11 @@ func (sink *gcmSink) getTimeSeries(timestamp time.Time, labels map[string]string
 		}
 	}
 
-	return createTimeSeries(timestamp, finalLabels, metric, val, createTime)
+	return sink.createTimeSeries(timestamp, finalLabels, monitoredResource, metric, val, createTime)
 }
 
 func (sink *gcmSink) getTimeSeriesForLabeledMetrics(timestamp time.Time, labels map[string]string, metric core.LabeledMetric, createTime time.Time) *gcm.TimeSeries {
+	monitoredResource := sink.getMonitoredResource(labels)
 	// Only all. There are no autoscaling labeled metrics.
 	if sink.metricFilter != metricsAll {
 		return nil
@@ -155,7 +175,7 @@ func (sink *gcmSink) getTimeSeriesForLabeledMetrics(timestamp time.Time, labels 
 		}
 	}
 
-	return createTimeSeries(timestamp, finalLabels, metric.Name, metric.MetricValue, createTime)
+	return sink.createTimeSeries(timestamp, finalLabels, monitoredResource, metric.Name, metric.MetricValue, createTime)
 }
 
 func fullProjectName(name string) string {
@@ -340,9 +360,17 @@ func CreateGCMSink(uri *url.URL) (core.DataSink, error) {
 		return nil, fmt.Errorf("error getting GCP project ID: %v", err)
 	}
 
+	metadata := ec2metadata.New(session.New())
+	identity_document, err := metadata.GetInstanceIdentityDocument()
+	if err != nil {
+		return nil, fmt.Errorf("could not get EC2 metadata: %v", err)
+	}
+
 	sink := &gcmSink{
 		registered:   false,
 		project:      projectId,
+		region:       identity_document.Region,
+		aws_account:  identity_document.AccountID,
 		gcmService:   gcmService,
 		metricFilter: metricFilter,
 	}
