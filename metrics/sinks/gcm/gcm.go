@@ -369,7 +369,7 @@ func CreateGCMSink(uri *url.URL) (core.DataSink, error) {
 	sink := &gcmSink{
 		registered:   false,
 		project:      projectId,
-		region:       identity_document.Region,
+		region:       "aws:" + identity_document.Region,
 		aws_account:  identity_document.AccountID,
 		gcmService:   gcmService,
 		metricFilter: metricFilter,
