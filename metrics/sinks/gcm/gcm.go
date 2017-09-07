@@ -57,6 +57,55 @@ type gcmSink struct {
 	gcmService   *gcm.Service
 }
 
+// Map of metric names to report to GCM sink (true reports, false does not).
+// We are selecting a subset of all metrics because of the limited quota
+// of timeseries allowed per day.
+var ReportedMetrics = map[string]bool{
+	// CPU
+	core.MetricCpuLimit.MetricDescriptor.Name:           true,
+	core.MetricCpuRequest.MetricDescriptor.Name:         true,
+	core.MetricCpuUsage.MetricDescriptor.Name:           true,
+	core.MetricCpuUsageRate.MetricDescriptor.Name:       false,
+	core.MetricNodeCpuAllocatable.MetricDescriptor.Name: true,
+	core.MetricNodeCpuCapacity.MetricDescriptor.Name:    true,
+	core.MetricNodeCpuReservation.MetricDescriptor.Name: true,
+	core.MetricNodeCpuUtilization.MetricDescriptor.Name: true,
+	// Filesystem
+	core.MetricFilesystemAvailable.MetricDescriptor.Name:  true,
+	core.MetricFilesystemLimit.MetricDescriptor.Name:      true,
+	core.MetricFilesystemUsage.MetricDescriptor.Name:      true,
+	core.MetricFilesystemInodes.MetricDescriptor.Name:     true,
+	core.MetricFilesystemInodesFree.MetricDescriptor.Name: true,
+	// Memory
+	core.MetricMemoryLimit.MetricDescriptor.Name:               true,
+	core.MetricMemoryMajorPageFaults.MetricDescriptor.Name:     false,
+	core.MetricMemoryMajorPageFaultsRate.MetricDescriptor.Name: false,
+	core.MetricMemoryPageFaults.MetricDescriptor.Name:          false,
+	core.MetricMemoryPageFaultsRate.MetricDescriptor.Name:      false,
+	core.MetricMemoryRequest.MetricDescriptor.Name:             true,
+	core.MetricMemoryUsage.MetricDescriptor.Name:               true,
+	core.MetricMemoryRSS.MetricDescriptor.Name:                 false,
+	core.MetricMemoryCache.MetricDescriptor.Name:               false,
+	core.MetricNodeMemoryAllocatable.MetricDescriptor.Name:     true,
+	core.MetricNodeMemoryCapacity.MetricDescriptor.Name:        true,
+	core.MetricNodeMemoryUtilization.MetricDescriptor.Name:     true,
+	core.MetricNodeMemoryReservation.MetricDescriptor.Name:     true,
+	// Network
+	core.MetricNetworkRx.MetricDescriptor.Name:           false,
+	core.MetricNetworkRxErrors.MetricDescriptor.Name:     false,
+	core.MetricNetworkRxErrorsRate.MetricDescriptor.Name: false,
+	core.MetricNetworkRxRate.MetricDescriptor.Name:       false,
+	core.MetricNetworkTx.MetricDescriptor.Name:           false,
+	core.MetricNetworkTxErrors.MetricDescriptor.Name:     false,
+	core.MetricNetworkTxErrorsRate.MetricDescriptor.Name: false,
+	core.MetricNetworkTxRate.MetricDescriptor.Name:       false,
+}
+
+func metricInReportedMetrics(metric string) bool {
+	report, exists := ReportedMetrics[metric]
+	return exists && report
+}
+
 func (sink *gcmSink) Name() string {
 	return "GCM Sink"
 }
@@ -200,6 +249,9 @@ func (sink *gcmSink) ExportData(dataBatch *core.DataBatch) {
 	req := getReq()
 	for _, metricSet := range dataBatch.MetricSets {
 		for metric, val := range metricSet.MetricValues {
+			if !metricInReportedMetrics(metric) {
+				continue
+			}
 			point := sink.getTimeSeries(dataBatch.Timestamp, metricSet.Labels, metric, val, metricSet.CreateTime)
 			if point != nil {
 				req.TimeSeries = append(req.TimeSeries, point)
@@ -210,6 +262,9 @@ func (sink *gcmSink) ExportData(dataBatch *core.DataBatch) {
 			}
 		}
 		for _, metric := range metricSet.LabeledMetrics {
+			if !metricInReportedMetrics(metric.Name) {
+				continue
+			}
 			point := sink.getTimeSeriesForLabeledMetrics(dataBatch.Timestamp, metricSet.Labels, metric, metricSet.CreateTime)
 			if point != nil {
 				req.TimeSeries = append(req.TimeSeries, point)
