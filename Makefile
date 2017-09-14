@@ -84,11 +84,6 @@ endif
 
 do-push:
 	docker push $(PREFIX)/heapster-$(ARCH):$(VERSION)
-ifeq ($(ARCH),amd64)
-# TODO: Remove this and push the manifest list as soon as it's working
-	docker tag $(PREFIX)/heapster-$(ARCH):$(VERSION) $(PREFIX)/heapster:$(VERSION)
-	docker push $(PREFIX)/heapster:$(VERSION)
-endif
 
 # Should depend on target: ./manifest-tool
 push: gcr-login $(addprefix sub-push-,$(ALL_ARCHITECTURES))
