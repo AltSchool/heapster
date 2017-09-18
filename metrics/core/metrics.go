@@ -71,6 +71,7 @@ var LabeledMetrics = []Metric{
 	MetricFilesystemAvailable,
 	MetricFilesystemInodes,
 	MetricFilesystemInodesFree,
+	MetricFilesystemInodesUsed,
 }
 
 var NodeAutoscalingMetrics = []Metric{
@@ -100,6 +101,7 @@ var FilesystemMetrics = []Metric{
 	MetricFilesystemUsage,
 	MetricFilesystemInodes,
 	MetricFilesystemInodesFree,
+	MetricFilesystemInodesUsed,
 }
 var MemoryMetrics = []Metric{
 	MetricMemoryLimit,
@@ -733,6 +735,39 @@ var MetricFilesystemInodesFree = Metric{
 						ValueType:  ValueInt64,
 						MetricType: MetricGauge,
 						IntValue:   int64(fs.InodesFree),
+					},
+				})
+			}
+		}
+		return result
+	},
+}
+
+var MetricFilesystemInodesUsed = Metric{
+	MetricDescriptor: MetricDescriptor{
+		Name:        "filesystem/inodes_used",
+		Description: "Used number of inodes on a filesystem",
+		Type:        MetricGauge,
+		ValueType:   ValueInt64,
+		Units:       UnitsBytes,
+		Labels:      metricLabels,
+	},
+	HasLabeledMetric: func(spec *cadvisor.ContainerSpec) bool {
+		return spec.HasFilesystem
+	},
+	GetLabeledMetric: func(spec *cadvisor.ContainerSpec, stat *cadvisor.ContainerStats) []LabeledMetric {
+		result := []LabeledMetric{}
+		for _, fs := range stat.Filesystem {
+			if fs.HasInodes {
+				result = append(result, LabeledMetric{
+					Name: "filesystem/inodes_used",
+					Labels: map[string]string{
+						LabelResourceID.Key: fs.Device,
+					},
+					MetricValue: MetricValue{
+						ValueType:  ValueInt64,
+						MetricType: MetricGauge,
+						IntValue:   int64(fs.Inodes) - int64(fs.InodesFree),
 					},
 				})
 			}
