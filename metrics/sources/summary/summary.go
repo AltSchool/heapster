@@ -298,6 +298,9 @@ func (this *summaryMetricsSource) decodeFsStats(metrics *MetricSet, fsKey string
 	this.addLabeledIntMetric(metrics, &MetricFilesystemUsage, fsLabels, fs.UsedBytes)
 	this.addLabeledIntMetric(metrics, &MetricFilesystemLimit, fsLabels, fs.CapacityBytes)
 	this.addLabeledIntMetric(metrics, &MetricFilesystemAvailable, fsLabels, fs.AvailableBytes)
+	this.addLabeledIntMetric(metrics, &MetricFilesystemInodes, fsLabels, fs.Inodes)
+	this.addLabeledIntMetric(metrics, &MetricFilesystemInodesFree, fsLabels, fs.InodesFree)
+	this.addLabeledIntMetric(metrics, &MetricFilesystemInodesUsed, fsLabels, fs.InodesUsed)
 }
 
 func (this *summaryMetricsSource) decodeUserDefinedMetrics(metrics *MetricSet, udm []stats.UserDefinedMetric) {
